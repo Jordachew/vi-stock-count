@@ -26,7 +26,7 @@ export function ActualsUpload({ sessionId, onComplete }: Props) {
     setLoading(true)
     setResult(null)
 
-    const { actuals, errors } = await parseActualsCSV(file, sessionId)
+    const { actuals, errors } = await parseActualsCSV(file)
 
     if (actuals.length === 0) {
       setLoading(false)

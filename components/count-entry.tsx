@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -148,7 +148,7 @@ export function CountEntry({ sessionId, enteredBy, onAdded }: Props) {
                 {...register('sku')}
                 ref={(e) => {
                   register('sku').ref(e)
-                  ;(skuInputRef as any).current = e
+                  ;(skuInputRef as React.MutableRefObject<HTMLInputElement | null>).current = e
                 }}
                 onBlur={onSkuBlur}
                 onKeyDown={onSkuKeyDown}

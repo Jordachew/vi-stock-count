@@ -42,7 +42,7 @@ export function parseMasterCSV(file: File): Promise<MasterCSVResult> {
         const errors: string[] = []
         const items: Omit<MasterItem, 'id' | 'created_at' | 'updated_at' | 'is_active'>[] = []
 
-        results.data.forEach((row: any, i: number) => {
+        ;(results.data as Record<string, string>[]).forEach((row, i) => {
           const sku = cleanSku(row['SKU'] ?? row['sku'] ?? '', i)
           const description = (row['SKU: Description'] ?? row['description'] ?? '').trim()
           const systemQtyRaw = row['QTY Count'] ?? row['qty_count'] ?? row['system_qty'] ?? '0'
@@ -81,7 +81,7 @@ export interface ActualsCSVResult {
   errors: string[]
 }
 
-export function parseActualsCSV(file: File, sessionId: string): Promise<ActualsCSVResult> {
+export function parseActualsCSV(file: File): Promise<ActualsCSVResult> {
   return new Promise((resolve) => {
     Papa.parse(file, {
       header: true,
@@ -90,7 +90,7 @@ export function parseActualsCSV(file: File, sessionId: string): Promise<ActualsC
         const errors: string[] = []
         const actuals: Omit<StockCountActual, 'id' | 'session_id' | 'created_at' | 'updated_at'>[] = []
 
-        results.data.forEach((row: any, i: number) => {
+        ;(results.data as Record<string, string>[]).forEach((row, i) => {
           const sku = cleanSku(row['SKU'] ?? row['sku'] ?? '', i)
           const description = (row['SKU: Description'] ?? row['description'] ?? '').trim() || null
           const qtyRaw = row['QTY Count'] ?? row['qty_count'] ?? row['qty_counted'] ?? '1'
@@ -125,7 +125,7 @@ export function parseActualsCSV(file: File, sessionId: string): Promise<ActualsC
   })
 }
 
-export function exportToCSV(data: Record<string, any>[], filename: string) {
+export function exportToCSV(data: Record<string, string | number | null | undefined>[], filename: string) {
   const csv = Papa.unparse(data)
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
