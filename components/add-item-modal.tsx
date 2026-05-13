@@ -26,6 +26,7 @@ const schema = z.object({
   branch: z.string().optional(),
   location: z.string().optional(),
   system_qty: z.coerce.number().int().min(0).default(0),
+  system_qty_date: z.string().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -61,6 +62,7 @@ export function AddItemModal({ initialSku = '', onClose, onCreated }: Props) {
         branch: data.branch || null,
         location: data.location || null,
         system_qty: data.system_qty,
+        system_qty_date: data.system_qty_date || null,
         is_active: true,
       })
       .select()
@@ -147,14 +149,24 @@ export function AddItemModal({ initialSku = '', onClose, onCreated }: Props) {
             </select>
           </div>
 
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">System Qty</label>
-            <input
-              {...register('system_qty')}
-              type="number"
-              min={0}
-              className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-pink-500"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">System Qty</label>
+              <input
+                {...register('system_qty')}
+                type="number"
+                min={0}
+                className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-pink-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Qty As-of Date</label>
+              <input
+                {...register('system_qty_date')}
+                type="date"
+                className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-pink-500"
+              />
+            </div>
           </div>
 
           <div className="flex gap-3 pt-2">

@@ -134,8 +134,8 @@ export default function MasterDataPage() {
         </div>
       ) : (
         <>
-          <div className="rounded-xl border border-slate-700 overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="rounded-xl border border-slate-700 overflow-hidden overflow-x-auto">
+            <table className="w-full text-sm min-w-[900px]">
               <thead className="bg-slate-800 text-slate-400 text-xs">
                 <tr>
                   <th className="px-4 py-3 text-left">SKU</th>
@@ -145,6 +145,7 @@ export default function MasterDataPage() {
                   <th className="px-4 py-3 text-left">Branch</th>
                   <th className="px-4 py-3 text-left">Location</th>
                   <th className="px-4 py-3 text-right">Sys Qty</th>
+                  <th className="px-4 py-3 text-left whitespace-nowrap">Qty Date</th>
                   <th className="px-4 py-3 text-center">Active</th>
                   <th className="px-4 py-3"></th>
                 </tr>
@@ -152,7 +153,7 @@ export default function MasterDataPage() {
               <tbody>
                 {items.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="text-center py-10 text-slate-500">
+                    <td colSpan={10} className="text-center py-10 text-slate-500">
                       No items found. Upload a CSV or add manually.
                     </td>
                   </tr>
@@ -173,6 +174,9 @@ export default function MasterDataPage() {
                     <td className="px-4 py-2.5 text-slate-400">{item.branch ?? '—'}</td>
                     <td className="px-4 py-2.5 text-slate-400">{item.location ?? '—'}</td>
                     <td className="px-4 py-2.5 text-right text-slate-300">{item.system_qty}</td>
+                    <td className="px-4 py-2.5 text-slate-400 whitespace-nowrap text-xs">
+                      {item.system_qty_date ?? '—'}
+                    </td>
                     <td className="px-4 py-2.5 text-center">
                       <button onClick={() => toggleActive(item)} className="text-slate-400 hover:text-white">
                         {item.is_active
@@ -265,6 +269,7 @@ function EditItemModal({ item, onClose, onSaved }: {
         branch: form.branch || null,
         location: form.location || null,
         system_qty: form.system_qty,
+        system_qty_date: form.system_qty_date || null,
       })
       .eq('id', item.id)
       .select()
@@ -329,14 +334,25 @@ function EditItemModal({ item, onClose, onSaved }: {
               {LOCATIONS.map((l) => <option key={l} value={l}>{l}</option>)}
             </select>
           </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">System Qty</label>
-            <input
-              type="number"
-              value={form.system_qty}
-              onChange={(e) => setForm({ ...form, system_qty: parseInt(e.target.value) || 0 })}
-              className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-pink-500"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">System Qty</label>
+              <input
+                type="number"
+                value={form.system_qty}
+                onChange={(e) => setForm({ ...form, system_qty: parseInt(e.target.value) || 0 })}
+                className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-pink-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Qty As-of Date</label>
+              <input
+                type="date"
+                value={form.system_qty_date ?? ''}
+                onChange={(e) => setForm({ ...form, system_qty_date: e.target.value || null })}
+                className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-pink-500"
+              />
+            </div>
           </div>
           <div className="flex gap-3 pt-2">
             <button onClick={onClose} className="flex-1 px-4 py-2 rounded bg-slate-700 text-slate-200 text-sm hover:bg-slate-600">Cancel</button>

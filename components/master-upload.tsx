@@ -1,13 +1,29 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { parseMasterCSV } from '@/lib/csv-parsers'
+import { parseMasterCSV, MasterCSVResult } from '@/lib/csv-parsers'
 import { supabase } from '@/lib/supabase'
 import { Upload, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { useToast } from './toast'
 
 interface Props {
   onComplete?: () => void
+}
+
+async function parseXLS(file: File): Promise<MasterCSVResult> {
+  // Dynamic import keeps xlsx out of the initial bundle
+  const XLSX = await import('xlsx')
+  const buf = await file.arrayBuffer()
+  const wb = XLSX.read(buf, { type: 'array', cellDates: true })
+  const sheetName = wb.SheetNames[0]
+  const ws = wb.Sheets[sheetName]
+  // header:1 gives array-of-arrays; header:0 gives array-of-objects keyed by row-1 headers
+  const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: '' })
+  // Convert to CSV string then re-parse with parseMasterCSV for shared logic
+  const { default: Papa } = await import('papaparse')
+  const csv = Papa.unparse(rows)
+  const csvFile = new File([csv], file.name.replace(/\.xlsx?$/i, '.csv'), { type: 'text/csv' })
+  return parseMasterCSV(csvFile)
 }
 
 export function MasterUpload({ onComplete }: Props) {
@@ -18,18 +34,23 @@ export function MasterUpload({ onComplete }: Props) {
   const [dragging, setDragging] = useState(false)
 
   const handleFile = async (file: File) => {
-    if (!file.name.endsWith('.csv')) {
-      toast('Please upload a CSV file', 'error')
+    const name = file.name.toLowerCase()
+    const isXLS = name.endsWith('.xls') || name.endsWith('.xlsx')
+    const isCSV = name.endsWith('.csv')
+
+    if (!isCSV && !isXLS) {
+      toast('Please upload a CSV or XLS/XLSX file', 'error')
       return
     }
+
     setLoading(true)
     setResult(null)
 
-    const { items, errors } = await parseMasterCSV(file)
+    const { items, errors } = isXLS ? await parseXLS(file) : await parseMasterCSV(file)
 
     if (items.length === 0) {
       setLoading(false)
-      setResult({ inserted: 0, errors: errors.length ? errors : ['No items found in CSV'] })
+      setResult({ inserted: 0, errors: errors.length ? errors : ['No items found in file'] })
       return
     }
 
@@ -82,18 +103,21 @@ export function MasterUpload({ onComplete }: Props) {
             : 'border-slate-600 hover:border-slate-400'
         }`}
       >
-        <input ref={inputRef} type="file" accept=".csv" className="hidden" onChange={onFileChange} />
+        <input ref={inputRef} type="file" accept=".csv,.xls,.xlsx" className="hidden" onChange={onFileChange} />
         {loading ? (
           <div className="flex flex-col items-center gap-2 text-slate-400">
             <Loader2 size={28} className="animate-spin text-pink-500" />
-            <p className="text-sm">Processing CSV…</p>
+            <p className="text-sm">Processing file…</p>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-2 text-slate-400">
             <Upload size={28} className="text-slate-500" />
-            <p className="text-sm font-medium text-slate-300">Drop master data CSV here</p>
-            <p className="text-xs">or click to browse</p>
-            <p className="text-xs text-slate-500">Columns: SKU, SKU: Description, QTY Count, In store location, Branch, Size, Color</p>
+            <p className="text-sm font-medium text-slate-300">Drop master data file here</p>
+            <p className="text-xs">or click to browse · CSV, XLS, XLSX</p>
+            <div className="mt-1 text-xs text-slate-500 space-y-0.5">
+              <p><span className="text-slate-400">SharePoint CSV:</span> SKU, SKU: Description, QTY Count, In store location, Branch, Size, Color</p>
+              <p><span className="text-slate-400">QuickBooks export:</span> SKU, Sales Description, Quantity On Hand, Quantity as-of Date — size &amp; color auto-extracted from description</p>
+            </div>
           </div>
         )}
       </div>

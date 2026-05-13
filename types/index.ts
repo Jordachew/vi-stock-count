@@ -16,6 +16,7 @@ export interface MasterItem {
   size: string | null
   color: string | null
   system_qty: number
+  system_qty_date: string | null
   branch: string | null
   location: string | null
   is_active: boolean
