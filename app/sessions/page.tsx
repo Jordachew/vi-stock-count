@@ -8,7 +8,7 @@ import { useToast } from '@/components/toast'
 import { format } from 'date-fns'
 import {
   Plus, ArrowRight, Loader2, ClipboardList, Layers,
-  ChevronDown, ChevronRight, X, Check,
+  ChevronDown, ChevronRight, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -136,8 +136,6 @@ function AssignEventCell({
     onAssigned(session.id, eventId)
   }
 
-  const current = events.find((e) => e.id === session.event_id)
-
   return (
     <div className="flex items-center gap-1.5 min-w-[140px]">
       {saving
@@ -165,12 +163,10 @@ function EventsTab({
   events,
   sessions,
   onEventCreated,
-  onSessionAssigned,
 }: {
   events: CountEvent[]
   sessions: StockSession[]
   onEventCreated: (e: CountEvent) => void
-  onSessionAssigned: (sessionId: string, eventId: string | null) => void
 }) {
   const [showCreate, setShowCreate] = useState(false)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -371,7 +367,6 @@ export default function SessionsPage() {
           events={events}
           sessions={sessions}
           onEventCreated={(e) => setEvents((prev) => [e, ...prev])}
-          onSessionAssigned={handleSessionAssigned}
         />
       ) : (
         <>
