@@ -27,7 +27,7 @@ export interface MasterItem {
 
 export interface DropdownOption {
   id: string
-  type: 'size' | 'color' | 'category'
+  type: 'size' | 'color' | 'category' | 'location'
   value: string
   sort_order: number
   is_active: boolean

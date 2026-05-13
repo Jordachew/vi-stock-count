@@ -21,6 +21,7 @@ export function useDropdowns() {
   const sizes = options.filter((o) => o.type === 'size').map((o) => o.value)
   const colors = options.filter((o) => o.type === 'color').map((o) => o.value)
   const categories = options.filter((o) => o.type === 'category').map((o) => o.value)
+  const locations = options.filter((o) => o.type === 'location').map((o) => o.value)
 
-  return { sizes, colors, categories, options, loading, reload: load }
+  return { sizes, colors, categories, locations, options, loading, reload: load }
 }

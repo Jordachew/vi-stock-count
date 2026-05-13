@@ -12,12 +12,6 @@ import { Loader2, Search, Plus, RefreshCw } from 'lucide-react'
 import { AddItemModal } from './add-item-modal'
 import { useToast } from './toast'
 
-const LOCATIONS = [
-  'Draw 1', 'Draw 2', 'Draw 3', 'Draw 4', 'Draw 5', 'Draw 6', 'Draw 7',
-  'Bra Column 1', 'Bra Column 2', 'Bra Column 3', 'Bra Column 4',
-  'Bra Column 5', 'Bra Column 6', 'Bra Column 7', 'Bra Column 8', 'Bra Column 9',
-  'Storage room shelf 1', 'Storage room shelf 2', 'Rack 1',
-]
 
 const schema = z.object({
   sku: z.string().min(1, 'SKU required').transform((v) => v.trim()),
@@ -49,7 +43,7 @@ interface Props {
 
 export function CountEntry({ sessionId, enteredBy, onAdded }: Props) {
   const { toast } = useToast()
-  const { sizes, colors, categories } = useDropdowns()
+  const { sizes, colors, categories, locations } = useDropdowns()
 
   const [masterItem, setMasterItem] = useState<MasterItem | null>(null)
   const [skuStatus, setSkuStatus] = useState<'idle' | 'found' | 'not_found' | 'searching'>('idle')
@@ -391,7 +385,7 @@ export function CountEntry({ sessionId, enteredBy, onAdded }: Props) {
               className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-pink-500"
             >
               <option value="">— Select —</option>
-              {LOCATIONS.map((l) => <option key={l} value={l}>{l}</option>)}
+              {locations.map((l) => <option key={l} value={l}>{l}</option>)}
             </select>
           </div>
         </div>

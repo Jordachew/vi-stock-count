@@ -11,13 +11,6 @@ import { useToast } from './toast'
 import { useDropdowns } from '@/lib/dropdowns'
 
 const BRANCHES = ['Montego Bay', 'Kingston', 'Off site storage']
-const LOCATIONS = [
-  'Draw 1', 'Draw 2', 'Draw 3', 'Draw 4', 'Draw 5', 'Draw 6', 'Draw 7',
-  'Bra Column 1', 'Bra Column 2', 'Bra Column 3', 'Bra Column 4',
-  'Bra Column 5', 'Bra Column 6', 'Bra Column 7', 'Bra Column 8', 'Bra Column 9',
-  'Storage room shelf 1', 'Storage room shelf 2',
-  'Rack 1',
-]
 
 const schema = z.object({
   sku: z.string().min(1, 'SKU required').transform((v) => v.trim()),
@@ -26,7 +19,6 @@ const schema = z.object({
   color: z.string().optional(),
   category: z.string().optional(),
   branch: z.string().optional(),
-  location: z.string().optional(),
   system_qty: z.coerce.number().int().min(0).default(0),
   system_qty_date: z.string().optional(),
 })
@@ -64,7 +56,6 @@ export function AddItemModal({ initialSku = '', onClose, onCreated }: Props) {
         color: data.color || null,
         category: data.category || null,
         branch: data.branch || null,
-        location: data.location || null,
         system_qty: data.system_qty,
         system_qty_date: data.system_qty_date || null,
         is_active: true,
@@ -156,16 +147,6 @@ export function AddItemModal({ initialSku = '', onClose, onCreated }: Props) {
             </select>
           </div>
 
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Location</label>
-            <select
-              {...register('location')}
-              className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-pink-500"
-            >
-              <option value="">— Select location —</option>
-              {LOCATIONS.map((l) => <option key={l} value={l}>{l}</option>)}
-            </select>
-          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>

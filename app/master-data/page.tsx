@@ -146,7 +146,6 @@ export default function MasterDataPage() {
                   <th className="px-4 py-3 text-left">Color</th>
                   <th className="px-4 py-3 text-left">Category</th>
                   <th className="px-4 py-3 text-left">Branch</th>
-                  <th className="px-4 py-3 text-left">Location</th>
                   <th className="px-4 py-3 text-right">Sys Qty</th>
                   <th className="px-4 py-3 text-left whitespace-nowrap">Qty Date</th>
                   <th className="px-4 py-3 text-center">Active</th>
@@ -156,7 +155,7 @@ export default function MasterDataPage() {
               <tbody>
                 {items.length === 0 && (
                   <tr>
-                    <td colSpan={11} className="text-center py-10 text-slate-500">
+                    <td colSpan={10} className="text-center py-10 text-slate-500">
                       No items found. Upload a CSV or add manually.
                     </td>
                   </tr>
@@ -176,7 +175,6 @@ export default function MasterDataPage() {
                     <td className="px-4 py-2.5 text-slate-400">{item.color ?? '—'}</td>
                     <td className="px-4 py-2.5 text-slate-400">{item.category ?? '—'}</td>
                     <td className="px-4 py-2.5 text-slate-400">{item.branch ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-slate-400">{item.location ?? '—'}</td>
                     <td className="px-4 py-2.5 text-right text-slate-300">{item.system_qty}</td>
                     <td className="px-4 py-2.5 text-slate-400 whitespace-nowrap text-xs">
                       {item.system_qty_date ?? '—'}
@@ -265,7 +263,7 @@ function EditItemModal({ item, onClose, onSaved }: {
 
   const save = async () => {
     setSaving(true)
-    const auditFields = ['description', 'size', 'color', 'category', 'branch', 'location', 'system_qty', 'system_qty_date']
+    const auditFields = ['description', 'size', 'color', 'category', 'branch', 'system_qty', 'system_qty_date']
     const changes = diffFields(
       Object.fromEntries(auditFields.map((f) => [f, item[f as keyof MasterItem] != null ? String(item[f as keyof MasterItem]) : null])),
       Object.fromEntries(auditFields.map((f) => [f, form[f as keyof typeof form] != null ? String(form[f as keyof typeof form]) : null])),
@@ -279,7 +277,6 @@ function EditItemModal({ item, onClose, onSaved }: {
         color: form.color || null,
         category: form.category || null,
         branch: form.branch || null,
-        location: form.location || null,
         system_qty: form.system_qty,
         system_qty_date: form.system_qty_date || null,
       })
@@ -292,13 +289,6 @@ function EditItemModal({ item, onClose, onSaved }: {
     toast('Item updated', 'success')
     onSaved(data as MasterItem)
   }
-
-  const LOCATIONS = [
-    'Draw 1', 'Draw 2', 'Draw 3', 'Draw 4', 'Draw 5', 'Draw 6', 'Draw 7',
-    'Bra Column 1', 'Bra Column 2', 'Bra Column 3', 'Bra Column 4',
-    'Bra Column 5', 'Bra Column 6', 'Bra Column 7', 'Bra Column 8', 'Bra Column 9',
-    'Storage room shelf 1', 'Storage room shelf 2', 'Rack 1',
-  ]
 
   // Include current value even if not in dropdown list
   const sizeOpts = form.size && !sizes.includes(form.size) ? [...sizes, form.size] : sizes
@@ -370,17 +360,6 @@ function EditItemModal({ item, onClose, onSaved }: {
               {['Montego Bay', 'Kingston', 'Off site storage'].map((b) => (
                 <option key={b} value={b}>{b}</option>
               ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Location</label>
-            <select
-              value={form.location ?? ''}
-              onChange={(e) => setForm({ ...form, location: e.target.value })}
-              className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-pink-500"
-            >
-              <option value="">— Select —</option>
-              {LOCATIONS.map((l) => <option key={l} value={l}>{l}</option>)}
             </select>
           </div>
           <div className="grid grid-cols-2 gap-3">

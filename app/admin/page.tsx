@@ -7,7 +7,7 @@ import { Plus, Trash2, Loader2, GripVertical, ClipboardList } from 'lucide-react
 import { useToast } from '@/components/toast'
 import { cn } from '@/lib/utils'
 
-type DropType = 'size' | 'color' | 'category'
+type DropType = 'size' | 'color' | 'category' | 'location'
 type AdminTab = 'dropdowns' | 'audit'
 
 interface AuditEntry {
@@ -25,6 +25,7 @@ const TYPE_LABELS: Record<DropType, string> = {
   size: 'Sizes',
   color: 'Colors',
   category: 'Categories',
+  location: 'Locations',
 }
 
 export default function AdminPage() {
