@@ -1,25 +1,46 @@
 import { MasterItem, StockCountActual, VarianceLine } from '@/types'
 
+const normSku = (s: string) => s.trim().toUpperCase()
+
 /**
- * Build variance lines from master items + counted actuals for a single session.
- * Variance = counted_qty - system_qty  (positive=over, negative=short)
+ * Build variance lines from master items + counted actuals (one or more sessions).
+ * - SKU matching is case/whitespace-insensitive
+ * - Description always comes from master data
+ * - Size + color come from count entry (what was physically found); fall back to master
+ * - Variance = counted_qty - system_qty (positive = over, negative = short)
  */
 export function buildVarianceLines(
   masterItems: MasterItem[],
   actuals: StockCountActual[]
 ): VarianceLine[] {
-  // Aggregate counted qty by SKU
-  const counted = actuals.reduce<Record<string, number>>((acc, a) => {
-    acc[a.sku] = (acc[a.sku] ?? 0) + a.qty_counted
-    return acc
-  }, {})
+  // Build master lookup by normalized SKU
+  const masterBySku = new Map<string, MasterItem>()
+  for (const item of masterItems) {
+    masterBySku.set(normSku(item.sku), item)
+  }
 
-  const masterSkus = new Set(masterItems.map((m) => m.sku))
+  // Aggregate counted qty + collect first actual per normalized SKU
+  const counted = new Map<string, { qty: number; actual: StockCountActual }>()
+  for (const a of actuals) {
+    const key = normSku(a.sku)
+    const existing = counted.get(key)
+    if (existing) {
+      existing.qty += a.qty_counted
+    } else {
+      counted.set(key, { qty: a.qty_counted, actual: a })
+    }
+  }
+
+  const masterNormSkus = new Set(masterBySku.keys())
   const lines: VarianceLine[] = []
 
   // All master items
   for (const item of masterItems) {
-    const countedQty = counted[item.sku] ?? 0
+    const key = normSku(item.sku)
+    const countData = counted.get(key)
+    const countedQty = countData?.qty ?? 0
+    const countActual = countData?.actual
+
     const variance = countedQty - item.system_qty
     const variancePct =
       item.system_qty !== 0 ? (variance / item.system_qty) * 100 : null
@@ -32,11 +53,11 @@ export function buildVarianceLines(
 
     lines.push({
       sku: item.sku,
-      description: item.description,
+      description: item.description,                        // always master
       branch: item.branch,
-      location: item.location,
-      size: item.size,
-      color: item.color,
+      location: countActual?.location ?? item.location,
+      size: countActual?.size ?? item.size,                 // count first, master fallback
+      color: countActual?.color ?? item.color,              // count first, master fallback
       system_qty: item.system_qty,
       counted_qty: countedQty,
       variance,
@@ -45,17 +66,16 @@ export function buildVarianceLines(
     })
   }
 
-  // Items counted but NOT in master
-  for (const [sku, countedQty] of Object.entries(counted)) {
-    if (!masterSkus.has(sku)) {
-      const actual = actuals.find((a) => a.sku === sku)
+  // Items counted but NOT in master (after normalization)
+  Array.from(counted.entries()).forEach(([key, { qty: countedQty, actual }]) => {
+    if (!masterNormSkus.has(key)) {
       lines.push({
-        sku,
-        description: actual?.description ?? null,
+        sku: actual.sku,
+        description: actual.description ?? null,
         branch: null,
-        location: actual?.location ?? null,
-        size: actual?.size ?? null,
-        color: actual?.color ?? null,
+        location: actual.location ?? null,
+        size: actual.size ?? null,
+        color: actual.color ?? null,
         system_qty: 0,
         counted_qty: countedQty,
         variance: countedQty,
@@ -63,7 +83,7 @@ export function buildVarianceLines(
         status: 'unrecognized',
       })
     }
-  }
+  })
 
   return lines
 }

@@ -34,6 +34,17 @@ export interface DropdownOption {
   created_at: string
 }
 
+export interface CountEvent {
+  id: string
+  event_name: string
+  branch: string
+  count_date: string
+  status: 'open' | 'closed' | 'reconciled'
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface StockSession {
   id: string
   session_name: string
@@ -42,6 +53,7 @@ export interface StockSession {
   status: SessionStatus
   entered_by: string | null
   notes: string | null
+  event_id: string | null
   created_at: string
   updated_at: string
 }

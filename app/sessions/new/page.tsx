@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { supabase } from '@/lib/supabase'
+import { CountEvent } from '@/types'
 import { useToast } from '@/components/toast'
 import { Loader2, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
@@ -19,6 +20,7 @@ const schema = z.object({
   count_date: z.string().min(1, 'Count date required'),
   entered_by: z.string().optional(),
   notes: z.string().optional(),
+  event_id: z.string().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -27,6 +29,16 @@ export default function NewSessionPage() {
   const router = useRouter()
   const { toast } = useToast()
   const [saving, setSaving] = useState(false)
+  const [events, setEvents] = useState<CountEvent[]>([])
+
+  useEffect(() => {
+    supabase
+      .from('count_events')
+      .select('id, event_name, branch, count_date')
+      .eq('status', 'open')
+      .order('count_date', { ascending: false })
+      .then(({ data }) => setEvents((data ?? []) as CountEvent[]))
+  }, [])
 
   const {
     register,
@@ -49,6 +61,7 @@ export default function NewSessionPage() {
         count_date: data.count_date,
         entered_by: data.entered_by || null,
         notes: data.notes || null,
+        event_id: data.event_id || null,
         status: 'open',
       })
       .select()
@@ -117,6 +130,24 @@ export default function NewSessionPage() {
             placeholder="Staff name"
           />
         </div>
+
+        {events.length > 0 && (
+          <div>
+            <label className="block text-xs text-slate-400 mb-1.5">Count Event <span className="text-slate-600">(optional)</span></label>
+            <select
+              {...register('event_id')}
+              className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2.5 text-white text-sm focus:outline-none focus:border-pink-500"
+            >
+              <option value="">— Standalone session —</option>
+              {events.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.event_name} ({e.branch})
+                </option>
+              ))}
+            </select>
+            <p className="text-slate-500 text-xs mt-1">Assign to an event to include in combined variance reports</p>
+          </div>
+        )}
 
         <div>
           <label className="block text-xs text-slate-400 mb-1.5">Notes</label>
