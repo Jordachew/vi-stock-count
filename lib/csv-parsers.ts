@@ -82,6 +82,26 @@ function isQBFormat(headers: string[]): boolean {
   return headers.some((h) => h === 'Sales Description' || h === 'Quantity On Hand')
 }
 
+/**
+ * Extract category from QB account columns.
+ * Income Account: "Sales of Product Income:Panties" → "Panties"
+ * Fallback: Inventory Asset Account: "Inventory:Inventory - Panties" → "Panties"
+ */
+export function parseCategory(incomeAccount: string, assetAccount: string): string | null {
+  if (incomeAccount && incomeAccount.includes(':')) {
+    const sub = incomeAccount.split(':').pop()?.trim() ?? ''
+    // Exclude COGS / cost-of-sales sub-accounts
+    if (sub && !/cogs|cost/i.test(sub)) return sub
+  }
+  if (assetAccount && assetAccount.includes(':')) {
+    const sub = assetAccount.split(':').pop()?.trim() ?? ''
+    // Strip "Inventory - " or "Inventory- " prefix
+    const cleaned = sub.replace(/^inventory\s*[-–]\s*/i, '').trim()
+    if (cleaned && !/^inventory$/i.test(cleaned)) return cleaned
+  }
+  return null
+}
+
 export function parseMasterCSV(file: File): Promise<MasterCSVResult> {
   return new Promise((resolve) => {
     Papa.parse(file, {
@@ -94,24 +114,45 @@ export function parseMasterCSV(file: File): Promise<MasterCSVResult> {
         const headers = results.meta.fields ?? []
         const qb = isQBFormat(headers)
 
-        rows.forEach((row, i) => {
+        // For QB: dedup by SKU — keep the row with the most specific Income Account
+        // (has sub-account via ':') and highest QoH; generic rows are QB "totals" duplicates.
+        const processRows: Record<string, string>[] = qb ? (() => {
+          const skuMap = new Map<string, Record<string, string>>()
+          rows.forEach((row) => {
+            const rawSku = String(row['SKU'] ?? row['Name'] ?? '').trim()
+            if (!rawSku || rawSku === '__EMPTY') return
+            const existing = skuMap.get(rawSku)
+            if (!existing) { skuMap.set(rawSku, row); return }
+            const existingSpecific = String(existing['Income Account'] ?? '').includes(':')
+            const newSpecific = String(row['Income Account'] ?? '').includes(':')
+            const existingQoH = parseFloat(String(existing['Quantity On Hand'] ?? '0')) || 0
+            const newQoH = parseFloat(String(row['Quantity On Hand'] ?? '0')) || 0
+            // Prefer specific account; break ties by highest QoH
+            if (!existingSpecific && newSpecific) { skuMap.set(rawSku, row) }
+            else if (existingSpecific === newSpecific && newQoH > existingQoH) { skuMap.set(rawSku, row) }
+          })
+          return Array.from(skuMap.values())
+        })() : rows
+
+        processRows.forEach((row, i) => {
           let sku: string
           let description: string
           let systemQty: number
           let system_qty_date: string | null
           let size: string | null
           let color: string | null
+          let category: string | null
           let location: string | null
           let branch: string | null
 
           if (qb) {
             // --- QuickBooks Online product/service export ---
-            // SKU may be in "SKU" column; Name in "Name" column
-            sku = cleanSku(row['SKU'] ?? row['Name'] ?? '', i)
+            // SKU may be numeric (e.g. 202000012) — convert to string
+            const rawSku = String(row['SKU'] ?? row['Name'] ?? '').trim()
+            sku = cleanSku(rawSku, i)
             const rawDesc = (row['Sales Description'] ?? row['Description'] ?? '').trim()
             description = rawDesc
 
-            // Try to extract size/color from description
             if (rawDesc) {
               const parsed = extractSizeColor(rawDesc)
               size = parsed.size
@@ -127,6 +168,11 @@ export function parseMasterCSV(file: File): Promise<MasterCSVResult> {
             const dateRaw = row['Quantity as-of Date'] ?? row['As Of'] ?? ''
             system_qty_date = parseUSDate(dateRaw)
 
+            category = parseCategory(
+              String(row['Income Account'] ?? ''),
+              String(row['Inventory Asset Account'] ?? '')
+            )
+
             location = (row['In store location'] ?? row['location'] ?? '').trim() || null
             branch = (row['Branch'] ?? row['branch'] ?? '').trim() || null
           } else {
@@ -134,7 +180,6 @@ export function parseMasterCSV(file: File): Promise<MasterCSVResult> {
             sku = cleanSku(row['SKU'] ?? row['sku'] ?? '', i)
             description = (row['SKU: Description'] ?? row['description'] ?? '').trim()
 
-            // Explicit size/color columns take priority; fall back to parsing description
             const explicitSize = (row['Size'] ?? row['size'] ?? '').trim() || null
             const explicitColor = (row['Color'] ?? row['color'] ?? '').trim() || null
             if (!explicitSize && !explicitColor && description) {
@@ -152,6 +197,7 @@ export function parseMasterCSV(file: File): Promise<MasterCSVResult> {
             const dateRaw = row['Qty Date'] ?? row['system_qty_date'] ?? ''
             system_qty_date = dateRaw ? parseJamaicanDate(dateRaw) : null
 
+            category = (row['Category'] ?? row['category'] ?? '').trim() || null
             location = (row['In store location'] ?? row['location'] ?? '').trim() || null
             branch = (row['Branch'] ?? row['branch'] ?? '').trim() || null
           }
@@ -165,6 +211,7 @@ export function parseMasterCSV(file: File): Promise<MasterCSVResult> {
             description: description || sku,
             size,
             color,
+            category,
             system_qty: systemQty,
             system_qty_date,
             branch,

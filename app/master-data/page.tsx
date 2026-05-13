@@ -8,6 +8,7 @@ import { AddItemModal } from '@/components/add-item-modal'
 import { useToast } from '@/components/toast'
 import { Plus, Search, RefreshCw, Loader2, Edit2, ToggleLeft, ToggleRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useDropdowns } from '@/lib/dropdowns'
 
 const BRANCHES = ['Montego Bay', 'Kingston', 'Off site storage']
 
@@ -142,6 +143,7 @@ export default function MasterDataPage() {
                   <th className="px-4 py-3 text-left">Description</th>
                   <th className="px-4 py-3 text-left">Size</th>
                   <th className="px-4 py-3 text-left">Color</th>
+                  <th className="px-4 py-3 text-left">Category</th>
                   <th className="px-4 py-3 text-left">Branch</th>
                   <th className="px-4 py-3 text-left">Location</th>
                   <th className="px-4 py-3 text-right">Sys Qty</th>
@@ -153,7 +155,7 @@ export default function MasterDataPage() {
               <tbody>
                 {items.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="text-center py-10 text-slate-500">
+                    <td colSpan={11} className="text-center py-10 text-slate-500">
                       No items found. Upload a CSV or add manually.
                     </td>
                   </tr>
@@ -171,6 +173,7 @@ export default function MasterDataPage() {
                     <td className="px-4 py-2.5 text-slate-200 max-w-[220px] truncate">{item.description}</td>
                     <td className="px-4 py-2.5 text-slate-400">{item.size ?? '—'}</td>
                     <td className="px-4 py-2.5 text-slate-400">{item.color ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-slate-400">{item.category ?? '—'}</td>
                     <td className="px-4 py-2.5 text-slate-400">{item.branch ?? '—'}</td>
                     <td className="px-4 py-2.5 text-slate-400">{item.location ?? '—'}</td>
                     <td className="px-4 py-2.5 text-right text-slate-300">{item.system_qty}</td>
@@ -255,6 +258,7 @@ function EditItemModal({ item, onClose, onSaved }: {
   onSaved: (item: MasterItem) => void
 }) {
   const { toast } = useToast()
+  const { sizes, colors, categories } = useDropdowns()
   const [form, setForm] = useState({ ...item })
   const [saving, setSaving] = useState(false)
 
@@ -266,6 +270,7 @@ function EditItemModal({ item, onClose, onSaved }: {
         description: form.description,
         size: form.size || null,
         color: form.color || null,
+        category: form.category || null,
         branch: form.branch || null,
         location: form.location || null,
         system_qty: form.system_qty,
@@ -287,29 +292,65 @@ function EditItemModal({ item, onClose, onSaved }: {
     'Storage room shelf 1', 'Storage room shelf 2', 'Rack 1',
   ]
 
+  // Include current value even if not in dropdown list
+  const sizeOpts = form.size && !sizes.includes(form.size) ? [...sizes, form.size] : sizes
+  const colorOpts = form.color && !colors.includes(form.color) ? [...colors, form.color] : colors
+  const catOpts = form.category && !categories.includes(form.category) ? [...categories, form.category] : categories
+
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-      <div className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-md shadow-2xl">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700">
+      <div className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700 sticky top-0 bg-slate-800">
           <h2 className="text-white font-semibold">Edit: {item.sku}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-lg leading-none">×</button>
         </div>
         <div className="px-5 py-4 space-y-3">
-          {[
-            ['Description', 'description', 'text'],
-            ['Size', 'size', 'text'],
-            ['Color', 'color', 'text'],
-          ].map(([label, key, type]) => (
-            <div key={key}>
-              <label className="block text-xs text-slate-400 mb-1">{label}</label>
-              <input
-                type={type}
-                value={String((form as Record<string, unknown>)[key] ?? '')}
-                onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-                className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-pink-500"
-              />
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Description</label>
+            <input
+              type="text"
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-pink-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Size</label>
+              <select
+                value={form.size ?? ''}
+                onChange={(e) => setForm({ ...form, size: e.target.value || null })}
+                className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white text-sm focus:outline-none focus:border-pink-500"
+              >
+                <option value="">—</option>
+                {sizeOpts.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
             </div>
-          ))}
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Color</label>
+              <select
+                value={form.color ?? ''}
+                onChange={(e) => setForm({ ...form, color: e.target.value || null })}
+                className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white text-sm focus:outline-none focus:border-pink-500"
+              >
+                <option value="">—</option>
+                {colorOpts.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Category</label>
+              <select
+                value={form.category ?? ''}
+                onChange={(e) => setForm({ ...form, category: e.target.value || null })}
+                className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white text-sm focus:outline-none focus:border-pink-500"
+              >
+                <option value="">—</option>
+                {catOpts.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+
           <div>
             <label className="block text-xs text-slate-400 mb-1">Branch</label>
             <select

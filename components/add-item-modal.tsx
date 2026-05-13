@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { MasterItem } from '@/types'
 import { X, Loader2 } from 'lucide-react'
 import { useToast } from './toast'
+import { useDropdowns } from '@/lib/dropdowns'
 
 const BRANCHES = ['Montego Bay', 'Kingston', 'Off site storage']
 const LOCATIONS = [
@@ -23,6 +24,7 @@ const schema = z.object({
   description: z.string().min(1, 'Description required'),
   size: z.string().optional(),
   color: z.string().optional(),
+  category: z.string().optional(),
   branch: z.string().optional(),
   location: z.string().optional(),
   system_qty: z.coerce.number().int().min(0).default(0),
@@ -39,6 +41,7 @@ interface Props {
 
 export function AddItemModal({ initialSku = '', onClose, onCreated }: Props) {
   const { toast } = useToast()
+  const { sizes, colors, categories } = useDropdowns()
   const [saving, setSaving] = useState(false)
 
   const {
@@ -59,6 +62,7 @@ export function AddItemModal({ initialSku = '', onClose, onCreated }: Props) {
         description: data.description,
         size: data.size || null,
         color: data.color || null,
+        category: data.category || null,
         branch: data.branch || null,
         location: data.location || null,
         system_qty: data.system_qty,
@@ -108,22 +112,36 @@ export function AddItemModal({ initialSku = '', onClose, onCreated }: Props) {
             {errors.description && <p className="text-red-400 text-xs mt-1">{errors.description.message}</p>}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="block text-xs text-slate-400 mb-1">Size</label>
-              <input
+              <select
                 {...register('size')}
-                className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-pink-500"
-                placeholder="e.g. 36B"
-              />
+                className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white text-sm focus:outline-none focus:border-pink-500"
+              >
+                <option value="">—</option>
+                {sizes.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
             </div>
             <div>
               <label className="block text-xs text-slate-400 mb-1">Color</label>
-              <input
+              <select
                 {...register('color')}
-                className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-pink-500"
-                placeholder="e.g. Black"
-              />
+                className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white text-sm focus:outline-none focus:border-pink-500"
+              >
+                <option value="">—</option>
+                {colors.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Category</label>
+              <select
+                {...register('category')}
+                className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white text-sm focus:outline-none focus:border-pink-500"
+              >
+                <option value="">—</option>
+                {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
             </div>
           </div>
 

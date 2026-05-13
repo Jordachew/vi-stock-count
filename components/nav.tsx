@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { BarChart3, ClipboardList, Database, Home, Menu, X } from 'lucide-react'
+import { BarChart3, ClipboardList, Database, Home, Menu, Settings, X } from 'lucide-react'
 import { useState } from 'react'
 
 const navItems = [
@@ -11,6 +11,7 @@ const navItems = [
   { href: '/master-data', label: 'Master Data', icon: Database },
   { href: '/sessions', label: 'Count Sessions', icon: ClipboardList },
   { href: '/variance', label: 'Variance Report', icon: BarChart3 },
+  { href: '/admin', label: 'Admin', icon: Settings },
 ]
 
 export function Nav() {

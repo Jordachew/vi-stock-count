@@ -15,6 +15,7 @@ export interface MasterItem {
   description: string
   size: string | null
   color: string | null
+  category: string | null
   system_qty: number
   system_qty_date: string | null
   branch: string | null
@@ -22,6 +23,15 @@ export interface MasterItem {
   is_active: boolean
   created_at: string
   updated_at: string
+}
+
+export interface DropdownOption {
+  id: string
+  type: 'size' | 'color' | 'category'
+  value: string
+  sort_order: number
+  is_active: boolean
+  created_at: string
 }
 
 export interface StockSession {

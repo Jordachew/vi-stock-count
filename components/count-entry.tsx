@@ -6,7 +6,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { supabase } from '@/lib/supabase'
 import { MasterItem, StockCountActual } from '@/types'
-import { Loader2, Search, Plus } from 'lucide-react'
+import { useDropdowns } from '@/lib/dropdowns'
+import { Loader2, Search, Plus, RefreshCw } from 'lucide-react'
 import { AddItemModal } from './add-item-modal'
 import { useToast } from './toast'
 
@@ -24,6 +25,7 @@ const schema = z.object({
   location: z.string().optional(),
   size: z.string().optional(),
   color: z.string().optional(),
+  category: z.string().optional(),
   notes: z.string().optional(),
 })
 
@@ -37,11 +39,14 @@ interface Props {
 
 export function CountEntry({ sessionId, enteredBy, onAdded }: Props) {
   const { toast } = useToast()
+  const { sizes, colors, categories } = useDropdowns()
   const [masterItem, setMasterItem] = useState<MasterItem | null>(null)
   const [skuStatus, setSkuStatus] = useState<'idle' | 'found' | 'not_found' | 'searching'>('idle')
   const [showAddModal, setShowAddModal] = useState(false)
   const [pendingSku, setPendingSku] = useState('')
   const [saving, setSaving] = useState(false)
+  const [editingDetails, setEditingDetails] = useState(false)
+  const [syncingMaster, setSyncingMaster] = useState(false)
   const skuInputRef = useRef<HTMLInputElement>(null)
 
   const {
@@ -57,6 +62,23 @@ export function CountEntry({ sessionId, enteredBy, onAdded }: Props) {
   })
 
   const skuValue = watch('sku')
+  const sizeValue = watch('size')
+  const colorValue = watch('color')
+  const categoryValue = watch('category')
+
+  // Check if any detail differs from master item
+  const detailsDiffer = masterItem && (
+    (sizeValue || null) !== (masterItem.size || null) ||
+    (colorValue || null) !== (masterItem.color || null) ||
+    (categoryValue || null) !== (masterItem.category || null)
+  )
+
+  const populateFromMaster = (item: MasterItem) => {
+    setValue('location', item.location ?? '')
+    setValue('size', item.size ?? '')
+    setValue('color', item.color ?? '')
+    setValue('category', item.category ?? '')
+  }
 
   const lookupSku = async (sku: string) => {
     const trimmed = sku.trim()
@@ -70,26 +92,38 @@ export function CountEntry({ sessionId, enteredBy, onAdded }: Props) {
       .maybeSingle()
 
     if (data) {
-      setMasterItem(data as MasterItem)
+      const item = data as MasterItem
+      setMasterItem(item)
       setSkuStatus('found')
-      setValue('location', data.location ?? '')
-      setValue('size', data.size ?? '')
-      setValue('color', data.color ?? '')
+      setEditingDetails(false)
+      populateFromMaster(item)
     } else {
       setMasterItem(null)
       setSkuStatus('not_found')
     }
   }
 
-  const onSkuBlur = () => {
-    if (skuValue?.trim()) lookupSku(skuValue)
+  const onSkuBlur = () => { if (skuValue?.trim()) lookupSku(skuValue) }
+  const onSkuKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') { e.preventDefault(); lookupSku((e.target as HTMLInputElement).value) }
   }
 
-  const onSkuKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      lookupSku((e.target as HTMLInputElement).value)
-    }
+  const syncToMaster = async () => {
+    if (!masterItem) return
+    setSyncingMaster(true)
+    const { error } = await supabase
+      .from('master_items')
+      .update({
+        size: sizeValue || null,
+        color: colorValue || null,
+        category: categoryValue || null,
+      })
+      .eq('id', masterItem.id)
+    setSyncingMaster(false)
+    if (error) { toast(error.message, 'error'); return }
+    setMasterItem({ ...masterItem, size: sizeValue || null, color: colorValue || null, category: categoryValue || null })
+    setEditingDetails(false)
+    toast('Master item updated', 'success')
   }
 
   const onSubmit = async (data: FormData) => {
@@ -123,6 +157,7 @@ export function CountEntry({ sessionId, enteredBy, onAdded }: Props) {
     reset({ qty_counted: 1 })
     setMasterItem(null)
     setSkuStatus('idle')
+    setEditingDetails(false)
     skuInputRef.current?.focus()
   }
 
@@ -130,11 +165,15 @@ export function CountEntry({ sessionId, enteredBy, onAdded }: Props) {
     setMasterItem(item)
     setSkuStatus('found')
     setValue('sku', item.sku)
-    setValue('location', item.location ?? '')
-    setValue('size', item.size ?? '')
-    setValue('color', item.color ?? '')
+    setEditingDetails(false)
+    populateFromMaster(item)
     setShowAddModal(false)
   }
+
+  // Dropdown helpers — include current value even if not in list
+  const sizeOptions = sizeValue && !sizes.includes(sizeValue) ? [...sizes, sizeValue] : sizes
+  const colorOptions = colorValue && !colors.includes(colorValue) ? [...colors, colorValue] : colors
+  const categoryOptions = categoryValue && !categories.includes(categoryValue) ? [...categories, categoryValue] : categories
 
   return (
     <>
@@ -177,11 +216,16 @@ export function CountEntry({ sessionId, enteredBy, onAdded }: Props) {
 
           {/* Master item preview */}
           {masterItem && (
-            <div className="mt-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded text-xs">
-              <span className="text-emerald-300 font-medium">{masterItem.description}</span>
-              {masterItem.size && <span className="text-slate-400 ml-2">Size: {masterItem.size}</span>}
-              {masterItem.color && <span className="text-slate-400 ml-2">Color: {masterItem.color}</span>}
-              <span className="text-slate-400 ml-2">Sys qty: {masterItem.system_qty}</span>
+            <div className="mt-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded text-xs space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-emerald-300 font-medium truncate">{masterItem.description}</span>
+                <span className="text-slate-400 shrink-0">Sys qty: {masterItem.system_qty}</span>
+              </div>
+              <div className="flex flex-wrap gap-2 text-slate-400">
+                {masterItem.size && <span>Size: <span className="text-white">{masterItem.size}</span></span>}
+                {masterItem.color && <span>Color: <span className="text-white">{masterItem.color}</span></span>}
+                {masterItem.category && <span>Category: <span className="text-white">{masterItem.category}</span></span>}
+              </div>
             </div>
           )}
           {skuStatus === 'not_found' && (
@@ -212,23 +256,87 @@ export function CountEntry({ sessionId, enteredBy, onAdded }: Props) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Size</label>
-            <input
-              {...register('size')}
-              className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-pink-500"
-              placeholder="e.g. 36B"
-            />
+        {/* Size / Color / Category — auto-populated, editable */}
+        <div className="rounded-lg border border-slate-700 bg-slate-800/30 p-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-slate-400 font-medium">Item Details</span>
+            {masterItem && !editingDetails && (
+              <button
+                type="button"
+                onClick={() => setEditingDetails(true)}
+                className="text-xs text-pink-400 hover:text-pink-300"
+              >
+                Edit
+              </button>
+            )}
+            {editingDetails && (
+              <div className="flex items-center gap-2">
+                {detailsDiffer && (
+                  <button
+                    type="button"
+                    onClick={syncToMaster}
+                    disabled={syncingMaster}
+                    className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 disabled:opacity-50"
+                  >
+                    {syncingMaster
+                      ? <Loader2 size={11} className="animate-spin" />
+                      : <RefreshCw size={11} />}
+                    Save to master
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => { if (masterItem) populateFromMaster(masterItem); setEditingDetails(false) }}
+                  className="text-xs text-slate-400 hover:text-slate-300"
+                >
+                  Reset
+                </button>
+              </div>
+            )}
           </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Color</label>
-            <input
-              {...register('color')}
-              className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-pink-500"
-              placeholder="e.g. Black"
-            />
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Size</label>
+              <select
+                {...register('size')}
+                disabled={masterItem !== null && !editingDetails}
+                className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white text-sm focus:outline-none focus:border-pink-500 disabled:opacity-60"
+              >
+                <option value="">—</option>
+                {sizeOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Color</label>
+              <select
+                {...register('color')}
+                disabled={masterItem !== null && !editingDetails}
+                className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white text-sm focus:outline-none focus:border-pink-500 disabled:opacity-60"
+              >
+                <option value="">—</option>
+                {colorOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Category</label>
+              <select
+                {...register('category')}
+                disabled={masterItem !== null && !editingDetails}
+                className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white text-sm focus:outline-none focus:border-pink-500 disabled:opacity-60"
+              >
+                <option value="">—</option>
+                {categoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
           </div>
+
+          {masterItem && !editingDetails && (
+            <p className="text-xs text-slate-500">Auto-filled from master item · click Edit to override</p>
+          )}
+          {editingDetails && detailsDiffer && (
+            <p className="text-xs text-amber-400">Changed from master — click "Save to master" to update the catalog</p>
+          )}
         </div>
 
         <div>
