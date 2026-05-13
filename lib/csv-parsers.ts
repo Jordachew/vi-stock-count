@@ -261,10 +261,12 @@ export function parseActualsCSV(file: File): Promise<ActualsCSVResult> {
             location,
             size,
             color,
+            category: null,
             entered_by: enteredBy,
             date_of_count: dateOfCount,
             notes: null,
             is_new_item: false,
+            system_qty_at_count: null,
           })
         })
 

@@ -67,10 +67,12 @@ export interface StockCountActual {
   location: string | null
   size: string | null
   color: string | null
+  category: string | null
   entered_by: string | null
   date_of_count: string | null
   notes: string | null
   is_new_item: boolean
+  system_qty_at_count: number | null
   created_at: string
   updated_at: string
 }

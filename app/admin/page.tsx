@@ -8,7 +8,7 @@ import { useToast } from '@/components/toast'
 import { cn } from '@/lib/utils'
 
 type DropType = 'size' | 'color' | 'category' | 'location'
-type AdminTab = 'dropdowns' | 'audit'
+type AdminTab = 'dropdowns' | 'audit' | 'count_audit'
 
 interface AuditEntry {
   id: string
@@ -19,6 +19,17 @@ interface AuditEntry {
   field_name: string
   old_value: string | null
   new_value: string | null
+}
+
+interface CountAuditEntry {
+  id: string
+  sku: string
+  changed_by: string | null
+  changed_at: string
+  field_name: string
+  old_value: string | null
+  new_value: string | null
+  session_id: string | null
 }
 
 const TYPE_LABELS: Record<DropType, string> = {
@@ -37,11 +48,16 @@ export default function AdminPage() {
   const [newValue, setNewValue] = useState('')
   const [adding, setAdding] = useState(false)
 
-  // Audit log state
+  // Master item audit log state
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([])
   const [auditLoading, setAuditLoading] = useState(false)
   const [auditSearch, setAuditSearch] = useState('')
   const [auditSource, setAuditSource] = useState('')
+
+  // Count actuals audit log state
+  const [countAuditLog, setCountAuditLog] = useState<CountAuditEntry[]>([])
+  const [countAuditLoading, setCountAuditLoading] = useState(false)
+  const [countAuditSearch, setCountAuditSearch] = useState('')
 
   const loadAudit = useCallback(async () => {
     setAuditLoading(true)
@@ -57,7 +73,21 @@ export default function AdminPage() {
     setAuditLoading(false)
   }, [auditSearch, auditSource])
 
+  const loadCountAudit = useCallback(async () => {
+    setCountAuditLoading(true)
+    let q = supabase
+      .from('count_actuals_audit_log')
+      .select('*')
+      .order('changed_at', { ascending: false })
+      .limit(200)
+    if (countAuditSearch) q = q.ilike('sku', `%${countAuditSearch}%`)
+    const { data } = await q
+    setCountAuditLog((data ?? []) as CountAuditEntry[])
+    setCountAuditLoading(false)
+  }, [countAuditSearch])
+
   useEffect(() => { if (tab === 'audit') loadAudit() }, [tab, loadAudit])
+  useEffect(() => { if (tab === 'count_audit') loadCountAudit() }, [tab, loadCountAudit])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -151,7 +181,16 @@ export default function AdminPage() {
             tab === 'audit' ? 'border-pink-500 text-white' : 'border-transparent text-slate-400 hover:text-white'
           )}
         >
-          <ClipboardList size={13} /> Audit Log
+          <ClipboardList size={13} /> Master Item Audit
+        </button>
+        <button
+          onClick={() => setTab('count_audit')}
+          className={cn(
+            'flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px',
+            tab === 'count_audit' ? 'border-pink-500 text-white' : 'border-transparent text-slate-400 hover:text-white'
+          )}
+        >
+          <ClipboardList size={13} /> Count Entry Edits
         </button>
       </div>
 
@@ -231,7 +270,66 @@ export default function AdminPage() {
               </table>
             )}
           </div>
-          <p className="text-xs text-slate-500">Showing last 200 entries. Old → New values. Red = before, Green = after.</p>
+          <p className="text-xs text-slate-500">Showing last 200 entries. Populated when master item fields are changed via &quot;Save to master&quot; or the Master Data edit form.</p>
+        </div>
+      )}
+
+      {/* ── COUNT ENTRY EDITS TAB ── */}
+      {tab === 'count_audit' && (
+        <div className="space-y-4">
+          <div className="flex gap-2 flex-wrap">
+            <input
+              value={countAuditSearch}
+              onChange={(e) => setCountAuditSearch(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && loadCountAudit()}
+              placeholder="Filter by SKU…"
+              className="flex-1 min-w-[160px] bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-pink-500"
+            />
+            <button
+              onClick={loadCountAudit}
+              className="px-3 py-2 rounded bg-slate-700 hover:bg-slate-600 text-white text-sm"
+            >
+              {countAuditLoading ? <Loader2 size={14} className="animate-spin" /> : 'Refresh'}
+            </button>
+          </div>
+
+          <div className="rounded-xl border border-slate-700 overflow-hidden overflow-x-auto">
+            {countAuditLoading ? (
+              <div className="flex items-center justify-center py-10 text-slate-400 gap-2">
+                <Loader2 size={16} className="animate-spin" /> Loading…
+              </div>
+            ) : countAuditLog.length === 0 ? (
+              <div className="text-center py-10 text-slate-500 text-sm">No count entry edits yet.</div>
+            ) : (
+              <table className="w-full text-sm min-w-[700px]">
+                <thead className="bg-slate-800 text-slate-400 text-xs">
+                  <tr>
+                    <th className="px-4 py-3 text-left whitespace-nowrap">When</th>
+                    <th className="px-4 py-3 text-left">SKU</th>
+                    <th className="px-4 py-3 text-left">Field</th>
+                    <th className="px-4 py-3 text-left">Old</th>
+                    <th className="px-4 py-3 text-left">New</th>
+                    <th className="px-4 py-3 text-left">By</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {countAuditLog.map((entry, i) => (
+                    <tr key={entry.id} className={cn('border-t border-slate-800', i % 2 === 0 ? 'bg-slate-900/50' : 'bg-slate-900')}>
+                      <td className="px-4 py-2.5 text-slate-400 text-xs whitespace-nowrap">
+                        {new Date(entry.changed_at).toLocaleString('en-JM', { dateStyle: 'short', timeStyle: 'short' })}
+                      </td>
+                      <td className="px-4 py-2.5 font-mono text-xs text-pink-300">{entry.sku}</td>
+                      <td className="px-4 py-2.5 text-slate-300">{entry.field_name}</td>
+                      <td className="px-4 py-2.5 text-red-300 text-xs">{entry.old_value ?? <span className="text-slate-600">—</span>}</td>
+                      <td className="px-4 py-2.5 text-emerald-300 text-xs">{entry.new_value ?? <span className="text-slate-600">—</span>}</td>
+                      <td className="px-4 py-2.5 text-slate-400 text-xs">{entry.changed_by ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+          <p className="text-xs text-slate-500">Showing last 200 entries. Logged when count entries are edited via the session page.</p>
         </div>
       )}
 
