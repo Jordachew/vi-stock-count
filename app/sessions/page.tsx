@@ -8,7 +8,7 @@ import { useToast } from '@/components/toast'
 import { format } from 'date-fns'
 import {
   Plus, ArrowRight, Loader2, ClipboardList, Layers,
-  ChevronDown, ChevronRight, X,
+  ChevronDown, ChevronRight, X, Trash2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -283,11 +283,13 @@ function EventsTab({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function SessionsPage() {
+  const { toast } = useToast()
   const [sessions, setSessions] = useState<StockSession[]>([])
   const [events, setEvents] = useState<CountEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'sessions' | 'events'>('sessions')
   const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'closed' | 'reconciled'>('all')
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -314,6 +316,28 @@ export default function SessionsPage() {
 
   const handleSessionAssigned = (sessionId: string, eventId: string | null) => {
     setSessions((prev) => prev.map((s) => s.id === sessionId ? { ...s, event_id: eventId } : s))
+  }
+
+  const deleteSession = async (s: StockSession) => {
+    if (s.status === 'reconciled') {
+      toast('Reconciled sessions cannot be deleted', 'error')
+      return
+    }
+    const entryCount = await supabase
+      .from('stock_count_actuals')
+      .select('id', { count: 'exact', head: true })
+      .eq('session_id', s.id)
+    const count = entryCount.count ?? 0
+    const msg = count > 0
+      ? `Delete "${s.session_name}"?\n\nThis will permanently delete ${count} count entr${count === 1 ? 'y' : 'ies'}. This cannot be undone.`
+      : `Delete "${s.session_name}"? This cannot be undone.`
+    if (!confirm(msg)) return
+    setDeletingId(s.id)
+    const { error } = await supabase.from('stock_sessions').delete().eq('id', s.id)
+    setDeletingId(null)
+    if (error) { toast(error.message, 'error'); return }
+    setSessions((prev) => prev.filter((x) => x.id !== s.id))
+    toast('Session deleted', 'success')
   }
 
   return (
@@ -456,6 +480,18 @@ export default function SessionsPage() {
                           >
                             Variance
                           </Link>
+                          {s.status !== 'reconciled' && (
+                            <button
+                              onClick={() => deleteSession(s)}
+                              disabled={deletingId === s.id}
+                              className="text-slate-600 hover:text-red-400 transition-colors disabled:opacity-50"
+                              title="Delete session"
+                            >
+                              {deletingId === s.id
+                                ? <Loader2 size={13} className="animate-spin" />
+                                : <Trash2 size={13} />}
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

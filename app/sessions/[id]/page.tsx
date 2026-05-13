@@ -25,6 +25,7 @@ import {
   X,
   Save,
 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
 const STATUS_COLORS = {
@@ -226,6 +227,7 @@ function EditActualModal({
 export default function SessionDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { toast } = useToast()
+  const router = useRouter()
 
   const [session, setSession] = useState<StockSession | null>(null)
   const [actuals, setActuals] = useState<StockCountActual[]>([])
@@ -302,6 +304,22 @@ export default function SessionDetailPage() {
     toast(`Session ${newStatus}`, 'success')
   }
 
+  const deleteSession = async () => {
+    if (session?.status === 'reconciled') {
+      toast('Reconciled sessions cannot be deleted', 'error')
+      return
+    }
+    const count = actuals.length
+    const msg = count > 0
+      ? `Delete "${session?.session_name}"?\n\nThis will permanently delete ${count} count entr${count === 1 ? 'y' : 'ies'}. This cannot be undone.`
+      : `Delete "${session?.session_name}"? This cannot be undone.`
+    if (!confirm(msg)) return
+    const { error } = await supabase.from('stock_sessions').delete().eq('id', id)
+    if (error) { toast(error.message, 'error'); return }
+    toast('Session deleted', 'success')
+    router.push('/sessions')
+  }
+
   const reopenSession = async () => {
     if (!confirm(`Reopen session "${session?.session_name}"? Entries will be editable again.`)) return
     const oldStatus = session?.status ?? 'closed'
@@ -373,6 +391,14 @@ export default function SessionDetailPage() {
               >
                 <BarChart3 size={14} /> Variance Report
               </Link>
+              {session.status !== 'reconciled' && (
+                <button
+                  onClick={deleteSession}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded bg-red-900/60 hover:bg-red-800 text-red-300 text-sm transition-colors border border-red-800/50"
+                >
+                  <Trash2 size={14} /> Delete Session
+                </button>
+              )}
               {isOpen ? (
                 <>
                   <button
