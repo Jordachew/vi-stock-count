@@ -70,7 +70,7 @@ export default function HelpPage() {
       content: (
         <div className="space-y-4">
           <p className="text-slate-300 leading-relaxed">
-            The <strong className="text-white">VI Stock Count</strong> system is Victoria&apos;s Intimates&apos; internal inventory
+            The <strong className="text-white">VI Stock Count</strong> system is Valentine&apos;s Intimates Limited&apos;s internal inventory
             management tool. It manages the full physical count cycle: load master data from QuickBooks,
             run count sessions across branches, and generate variance reports comparing physical counts against system quantities.
           </p>
@@ -422,7 +422,7 @@ export default function HelpPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-bold text-white">Help & User Guide</h1>
-        <p className="text-sm text-slate-400 mt-0.5">Victoria&apos;s Intimates — Stock Count System</p>
+        <p className="text-sm text-slate-400 mt-0.5">Valentine&apos;s Intimates Limited — Stock Count System</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">

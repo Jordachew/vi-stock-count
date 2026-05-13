@@ -57,14 +57,14 @@ export function VILogo({ size = 32, className = '' }: Props) {
   )
 }
 
-/** Wordmark variant — logo + "Victoria's Intimates" text */
+/** Wordmark variant — logo + "Valentine's Intimates Limited" text */
 export function VIWordmark({ logoSize = 28 }: { logoSize?: number }) {
   return (
     <div className="flex items-center gap-2.5">
       <VILogo size={logoSize} />
       <div className="leading-tight">
-        <div className="text-white font-bold text-sm tracking-wide">Victoria&apos;s</div>
-        <div className="text-pink-300 text-[10px] font-medium tracking-[0.15em] uppercase">Intimates</div>
+        <div className="text-white font-bold text-sm tracking-wide">Valentine&apos;s</div>
+        <div className="text-pink-300 text-[10px] font-medium tracking-[0.15em] uppercase">Intimates Limited</div>
       </div>
     </div>
   )
