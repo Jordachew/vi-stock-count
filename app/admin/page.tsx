@@ -216,7 +216,7 @@ export default function AdminPage() {
       </div>
 
       <p className="text-xs text-slate-500">
-        Hidden options won't appear in dropdowns but won't affect existing items. Deleting is permanent.
+        Hidden options won&apos;t appear in dropdowns but won&apos;t affect existing items. Deleting is permanent.
       </p>
     </div>
   )

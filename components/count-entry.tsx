@@ -335,7 +335,7 @@ export function CountEntry({ sessionId, enteredBy, onAdded }: Props) {
             <p className="text-xs text-slate-500">Auto-filled from master item · click Edit to override</p>
           )}
           {editingDetails && detailsDiffer && (
-            <p className="text-xs text-amber-400">Changed from master — click "Save to master" to update the catalog</p>
+            <p className="text-xs text-amber-400">Changed from master — click &quot;Save to master&quot; to update the catalog</p>
           )}
         </div>
 
