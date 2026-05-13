@@ -3,11 +3,23 @@
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { DropdownOption } from '@/types'
-import { Plus, Trash2, Loader2, GripVertical } from 'lucide-react'
+import { Plus, Trash2, Loader2, GripVertical, ClipboardList } from 'lucide-react'
 import { useToast } from '@/components/toast'
 import { cn } from '@/lib/utils'
 
 type DropType = 'size' | 'color' | 'category'
+type AdminTab = 'dropdowns' | 'audit'
+
+interface AuditEntry {
+  id: string
+  sku: string
+  changed_by: string | null
+  changed_at: string
+  source: string
+  field_name: string
+  old_value: string | null
+  new_value: string | null
+}
 
 const TYPE_LABELS: Record<DropType, string> = {
   size: 'Sizes',
@@ -17,11 +29,34 @@ const TYPE_LABELS: Record<DropType, string> = {
 
 export default function AdminPage() {
   const { toast } = useToast()
+  const [tab, setTab] = useState<AdminTab>('dropdowns')
   const [activeType, setActiveType] = useState<DropType>('category')
   const [options, setOptions] = useState<DropdownOption[]>([])
   const [loading, setLoading] = useState(true)
   const [newValue, setNewValue] = useState('')
   const [adding, setAdding] = useState(false)
+
+  // Audit log state
+  const [auditLog, setAuditLog] = useState<AuditEntry[]>([])
+  const [auditLoading, setAuditLoading] = useState(false)
+  const [auditSearch, setAuditSearch] = useState('')
+  const [auditSource, setAuditSource] = useState('')
+
+  const loadAudit = useCallback(async () => {
+    setAuditLoading(true)
+    let q = supabase
+      .from('master_item_audit_log')
+      .select('*')
+      .order('changed_at', { ascending: false })
+      .limit(200)
+    if (auditSearch) q = q.ilike('sku', `%${auditSearch}%`)
+    if (auditSource) q = q.eq('source', auditSource)
+    const { data } = await q
+    setAuditLog((data ?? []) as AuditEntry[])
+    setAuditLoading(false)
+  }, [auditSearch, auditSource])
+
+  useEffect(() => { if (tab === 'audit') loadAudit() }, [tab, loadAudit])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -91,12 +126,116 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-3xl">
       <div>
         <h1 className="text-xl font-bold text-white">Admin</h1>
-        <p className="text-sm text-slate-400 mt-0.5">Manage dropdown options used across the app</p>
+        <p className="text-sm text-slate-400 mt-0.5">Manage dropdown options and view audit trail</p>
       </div>
 
+      {/* Top-level tabs */}
+      <div className="flex gap-2 border-b border-slate-700 pb-0">
+        <button
+          onClick={() => setTab('dropdowns')}
+          className={cn(
+            'px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px',
+            tab === 'dropdowns' ? 'border-pink-500 text-white' : 'border-transparent text-slate-400 hover:text-white'
+          )}
+        >
+          Dropdowns
+        </button>
+        <button
+          onClick={() => setTab('audit')}
+          className={cn(
+            'flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px',
+            tab === 'audit' ? 'border-pink-500 text-white' : 'border-transparent text-slate-400 hover:text-white'
+          )}
+        >
+          <ClipboardList size={13} /> Audit Log
+        </button>
+      </div>
+
+      {/* ── AUDIT LOG TAB ── */}
+      {tab === 'audit' && (
+        <div className="space-y-4">
+          <div className="flex gap-2 flex-wrap">
+            <input
+              value={auditSearch}
+              onChange={(e) => setAuditSearch(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && loadAudit()}
+              placeholder="Filter by SKU…"
+              className="flex-1 min-w-[160px] bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-pink-500"
+            />
+            <select
+              value={auditSource}
+              onChange={(e) => setAuditSource(e.target.value)}
+              className="bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-pink-500"
+            >
+              <option value="">All sources</option>
+              <option value="count_entry">Count Entry</option>
+              <option value="master_data_edit">Master Data Edit</option>
+              <option value="csv_upload">CSV Upload</option>
+            </select>
+            <button
+              onClick={loadAudit}
+              className="px-3 py-2 rounded bg-slate-700 hover:bg-slate-600 text-white text-sm"
+            >
+              {auditLoading ? <Loader2 size={14} className="animate-spin" /> : 'Refresh'}
+            </button>
+          </div>
+
+          <div className="rounded-xl border border-slate-700 overflow-hidden overflow-x-auto">
+            {auditLoading ? (
+              <div className="flex items-center justify-center py-10 text-slate-400 gap-2">
+                <Loader2 size={16} className="animate-spin" /> Loading…
+              </div>
+            ) : auditLog.length === 0 ? (
+              <div className="text-center py-10 text-slate-500 text-sm">No audit entries yet.</div>
+            ) : (
+              <table className="w-full text-sm min-w-[700px]">
+                <thead className="bg-slate-800 text-slate-400 text-xs">
+                  <tr>
+                    <th className="px-4 py-3 text-left whitespace-nowrap">When</th>
+                    <th className="px-4 py-3 text-left">SKU</th>
+                    <th className="px-4 py-3 text-left">Field</th>
+                    <th className="px-4 py-3 text-left">Old</th>
+                    <th className="px-4 py-3 text-left">New</th>
+                    <th className="px-4 py-3 text-left">By</th>
+                    <th className="px-4 py-3 text-left">Source</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {auditLog.map((entry, i) => (
+                    <tr key={entry.id} className={cn('border-t border-slate-800', i % 2 === 0 ? 'bg-slate-900/50' : 'bg-slate-900')}>
+                      <td className="px-4 py-2.5 text-slate-400 text-xs whitespace-nowrap">
+                        {new Date(entry.changed_at).toLocaleString('en-JM', { dateStyle: 'short', timeStyle: 'short' })}
+                      </td>
+                      <td className="px-4 py-2.5 font-mono text-xs text-pink-300">{entry.sku}</td>
+                      <td className="px-4 py-2.5 text-slate-300">{entry.field_name}</td>
+                      <td className="px-4 py-2.5 text-red-300 text-xs">{entry.old_value ?? <span className="text-slate-600">—</span>}</td>
+                      <td className="px-4 py-2.5 text-emerald-300 text-xs">{entry.new_value ?? <span className="text-slate-600">—</span>}</td>
+                      <td className="px-4 py-2.5 text-slate-400 text-xs">{entry.changed_by ?? '—'}</td>
+                      <td className="px-4 py-2.5">
+                        <span className={cn(
+                          'px-1.5 py-0.5 rounded text-xs',
+                          entry.source === 'count_entry' ? 'bg-blue-500/20 text-blue-300' :
+                          entry.source === 'master_data_edit' ? 'bg-purple-500/20 text-purple-300' :
+                          'bg-slate-700 text-slate-400'
+                        )}>
+                          {entry.source.replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+          <p className="text-xs text-slate-500">Showing last 200 entries. Old → New values. Red = before, Green = after.</p>
+        </div>
+      )}
+
+      {/* ── DROPDOWNS TAB ── */}
+      {tab === 'dropdowns' && <>
       {/* Type tabs */}
       <div className="flex gap-2">
         {(Object.keys(TYPE_LABELS) as DropType[]).map((t) => (
@@ -218,6 +357,7 @@ export default function AdminPage() {
       <p className="text-xs text-slate-500">
         Hidden options won&apos;t appear in dropdowns but won&apos;t affect existing items. Deleting is permanent.
       </p>
+      </>}
     </div>
   )
 }

@@ -1,12 +1,13 @@
 'use client'
 
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { supabase } from '@/lib/supabase'
 import { MasterItem, StockCountActual } from '@/types'
 import { useDropdowns } from '@/lib/dropdowns'
+import { logMasterItemChanges, diffFields } from '@/lib/audit'
 import { Loader2, Search, Plus, RefreshCw } from 'lucide-react'
 import { AddItemModal } from './add-item-modal'
 import { useToast } from './toast'
@@ -15,8 +16,7 @@ const LOCATIONS = [
   'Draw 1', 'Draw 2', 'Draw 3', 'Draw 4', 'Draw 5', 'Draw 6', 'Draw 7',
   'Bra Column 1', 'Bra Column 2', 'Bra Column 3', 'Bra Column 4',
   'Bra Column 5', 'Bra Column 6', 'Bra Column 7', 'Bra Column 8', 'Bra Column 9',
-  'Storage room shelf 1', 'Storage room shelf 2',
-  'Rack 1',
+  'Storage room shelf 1', 'Storage room shelf 2', 'Rack 1',
 ]
 
 const schema = z.object({
@@ -31,6 +31,16 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>
 
+interface Suggestion {
+  sku: string
+  description: string
+  size: string | null
+  color: string | null
+  category: string | null
+  location: string | null
+  system_qty: number
+}
+
 interface Props {
   sessionId: string
   enteredBy: string | null
@@ -40,6 +50,7 @@ interface Props {
 export function CountEntry({ sessionId, enteredBy, onAdded }: Props) {
   const { toast } = useToast()
   const { sizes, colors, categories } = useDropdowns()
+
   const [masterItem, setMasterItem] = useState<MasterItem | null>(null)
   const [skuStatus, setSkuStatus] = useState<'idle' | 'found' | 'not_found' | 'searching'>('idle')
   const [showAddModal, setShowAddModal] = useState(false)
@@ -47,6 +58,13 @@ export function CountEntry({ sessionId, enteredBy, onAdded }: Props) {
   const [saving, setSaving] = useState(false)
   const [editingDetails, setEditingDetails] = useState(false)
   const [syncingMaster, setSyncingMaster] = useState(false)
+
+  // Autocomplete state
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const suggestionsRef = useRef<HTMLDivElement>(null)
   const skuInputRef = useRef<HTMLInputElement>(null)
 
   const {
@@ -66,31 +84,98 @@ export function CountEntry({ sessionId, enteredBy, onAdded }: Props) {
   const colorValue = watch('color')
   const categoryValue = watch('category')
 
-  // Check if any detail differs from master item
   const detailsDiffer = masterItem && (
     (sizeValue || null) !== (masterItem.size || null) ||
     (colorValue || null) !== (masterItem.color || null) ||
     (categoryValue || null) !== (masterItem.category || null)
   )
 
-  const populateFromMaster = (item: MasterItem) => {
+  // Close suggestions on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node) &&
+          skuInputRef.current && !skuInputRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const searchSuggestions = useCallback(async (val: string) => {
+    if (!val || val.length < 1) {
+      setSuggestions([])
+      setShowSuggestions(false)
+      return
+    }
+    setLoadingSuggestions(true)
+    const { data } = await supabase
+      .from('master_items')
+      .select('sku, description, size, color, category, location, system_qty')
+      .or(`sku.ilike.%${val}%,description.ilike.%${val}%`)
+      .eq('is_active', true)
+      .order('sku')
+      .limit(10)
+    setSuggestions((data ?? []) as Suggestion[])
+    setShowSuggestions(true)
+    setLoadingSuggestions(false)
+  }, [])
+
+  const onSkuInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value
+    setValue('sku', val)
+    // Clear master item when user types a new value
+    if (masterItem && val !== masterItem.sku) {
+      setMasterItem(null)
+      setSkuStatus('idle')
+      setEditingDetails(false)
+    }
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => searchSuggestions(val), 250)
+  }
+
+  const populateFromMaster = (item: MasterItem | Suggestion) => {
     setValue('location', item.location ?? '')
     setValue('size', item.size ?? '')
     setValue('color', item.color ?? '')
     setValue('category', item.category ?? '')
   }
 
+  const selectSuggestion = async (s: Suggestion) => {
+    setValue('sku', s.sku)
+    setShowSuggestions(false)
+    setSuggestions([])
+    setSkuStatus('searching')
+    setEditingDetails(false)
+    // Full fetch to get complete MasterItem
+    const { data } = await supabase
+      .from('master_items')
+      .select('*')
+      .eq('sku', s.sku)
+      .eq('is_active', true)
+      .maybeSingle()
+    if (data) {
+      const item = data as MasterItem
+      setMasterItem(item)
+      setSkuStatus('found')
+      populateFromMaster(item)
+    } else {
+      setMasterItem(null)
+      setSkuStatus('not_found')
+    }
+  }
+
   const lookupSku = async (sku: string) => {
     const trimmed = sku.trim()
     if (!trimmed) { setSkuStatus('idle'); setMasterItem(null); return }
+    setShowSuggestions(false)
     setSkuStatus('searching')
     const { data } = await supabase
       .from('master_items')
-      .select()
+      .select('*')
       .eq('sku', trimmed)
       .eq('is_active', true)
       .maybeSingle()
-
     if (data) {
       const item = data as MasterItem
       setMasterItem(item)
@@ -103,14 +188,29 @@ export function CountEntry({ sessionId, enteredBy, onAdded }: Props) {
     }
   }
 
-  const onSkuBlur = () => { if (skuValue?.trim()) lookupSku(skuValue) }
   const onSkuKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') { e.preventDefault(); lookupSku((e.target as HTMLInputElement).value) }
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      setShowSuggestions(false)
+      lookupSku((e.target as HTMLInputElement).value)
+    }
+    if (e.key === 'Escape') setShowSuggestions(false)
+    // Arrow keys to navigate suggestions
+    if (e.key === 'ArrowDown' && showSuggestions) {
+      e.preventDefault()
+      const first = suggestionsRef.current?.querySelector('button') as HTMLButtonElement | null
+      first?.focus()
+    }
   }
 
   const syncToMaster = async () => {
     if (!masterItem) return
     setSyncingMaster(true)
+    const changes = diffFields(
+      { size: masterItem.size, color: masterItem.color, category: masterItem.category },
+      { size: sizeValue || null, color: colorValue || null, category: categoryValue || null },
+      ['size', 'color', 'category']
+    )
     const { error } = await supabase
       .from('master_items')
       .update({
@@ -119,6 +219,15 @@ export function CountEntry({ sessionId, enteredBy, onAdded }: Props) {
         category: categoryValue || null,
       })
       .eq('id', masterItem.id)
+    if (!error) {
+      await logMasterItemChanges({
+        itemId: masterItem.id,
+        sku: masterItem.sku,
+        changedBy: enteredBy,
+        source: 'count_entry',
+        changes,
+      })
+    }
     setSyncingMaster(false)
     if (error) { toast(error.message, 'error'); return }
     setMasterItem({ ...masterItem, size: sizeValue || null, color: colorValue || null, category: categoryValue || null })
@@ -141,19 +250,15 @@ export function CountEntry({ sessionId, enteredBy, onAdded }: Props) {
       notes: data.notes || null,
       is_new_item: skuStatus === 'not_found',
     }
-
     const { data: inserted, error } = await supabase
       .from('stock_count_actuals')
       .insert(payload)
       .select()
       .single()
-
     setSaving(false)
     if (error) { toast(error.message, 'error'); return }
-
     toast(`${data.sku} added — qty ${data.qty_counted}`, 'success')
     onAdded(inserted as StockCountActual)
-
     reset({ qty_counted: 1 })
     setMasterItem(null)
     setSkuStatus('idle')
@@ -170,7 +275,6 @@ export function CountEntry({ sessionId, enteredBy, onAdded }: Props) {
     setShowAddModal(false)
   }
 
-  // Dropdown helpers — include current value even if not in list
   const sizeOptions = sizeValue && !sizes.includes(sizeValue) ? [...sizes, sizeValue] : sizes
   const colorOptions = colorValue && !colors.includes(colorValue) ? [...colors, colorValue] : colors
   const categoryOptions = categoryValue && !categories.includes(categoryValue) ? [...categories, categoryValue] : categories
@@ -178,40 +282,76 @@ export function CountEntry({ sessionId, enteredBy, onAdded }: Props) {
   return (
     <>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        {/* SKU row */}
+        {/* SKU with autocomplete */}
         <div>
           <label className="block text-xs text-slate-400 mb-1">SKU *</label>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <input
-                {...register('sku')}
-                ref={(e) => {
-                  register('sku').ref(e)
-                  ;(skuInputRef as React.MutableRefObject<HTMLInputElement | null>).current = e
-                }}
-                onBlur={onSkuBlur}
-                onKeyDown={onSkuKeyDown}
-                autoCapitalize="characters"
-                className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white text-sm pr-9 focus:outline-none focus:border-pink-500"
-                placeholder="Scan or type SKU…"
-              />
-              <div className="absolute right-2.5 top-2.5">
-                {skuStatus === 'searching' && <Loader2 size={14} className="animate-spin text-slate-400" />}
-                {skuStatus === 'found' && <Search size={14} className="text-emerald-400" />}
-                {skuStatus === 'not_found' && <Search size={14} className="text-amber-400" />}
-                {skuStatus === 'idle' && <Search size={14} className="text-slate-600" />}
+          <div className="relative">
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  {...register('sku')}
+                  ref={(e) => {
+                    register('sku').ref(e)
+                    ;(skuInputRef as React.MutableRefObject<HTMLInputElement | null>).current = e
+                  }}
+                  onChange={onSkuInputChange}
+                  onKeyDown={onSkuKeyDown}
+                  onFocus={() => { if (skuValue && suggestions.length > 0) setShowSuggestions(true) }}
+                  autoCapitalize="off"
+                  autoComplete="off"
+                  className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white text-sm pr-9 focus:outline-none focus:border-pink-500"
+                  placeholder="Type SKU or description to search…"
+                />
+                <div className="absolute right-2.5 top-2.5">
+                  {(skuStatus === 'searching' || loadingSuggestions) && <Loader2 size={14} className="animate-spin text-slate-400" />}
+                  {skuStatus === 'found' && !loadingSuggestions && <Search size={14} className="text-emerald-400" />}
+                  {skuStatus === 'not_found' && !loadingSuggestions && <Search size={14} className="text-amber-400" />}
+                  {skuStatus === 'idle' && !loadingSuggestions && <Search size={14} className="text-slate-600" />}
+                </div>
               </div>
+              {skuStatus === 'not_found' && (
+                <button
+                  type="button"
+                  onClick={() => { setPendingSku(skuValue?.trim() ?? ''); setShowAddModal(true) }}
+                  className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded text-sm flex items-center gap-1 whitespace-nowrap"
+                >
+                  <Plus size={14} /> New
+                </button>
+              )}
             </div>
-            {skuStatus === 'not_found' && (
-              <button
-                type="button"
-                onClick={() => { setPendingSku(skuValue?.trim() ?? ''); setShowAddModal(true) }}
-                className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded text-sm flex items-center gap-1 whitespace-nowrap"
+
+            {/* Suggestions dropdown */}
+            {showSuggestions && suggestions.length > 0 && (
+              <div
+                ref={suggestionsRef}
+                className="absolute z-50 top-full left-0 right-0 mt-1 bg-slate-800 border border-slate-600 rounded-lg shadow-xl overflow-hidden max-h-64 overflow-y-auto"
               >
-                <Plus size={14} /> New
-              </button>
+                {suggestions.map((s) => (
+                  <button
+                    key={s.sku}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()} // prevent blur before click
+                    onClick={() => selectSuggestion(s)}
+                    className="w-full text-left px-3 py-2.5 hover:bg-slate-700 focus:bg-slate-700 focus:outline-none border-b border-slate-700/50 last:border-0"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <span className="font-mono text-xs text-pink-300">{s.sku}</span>
+                        <span className="text-white text-sm ml-2 truncate">{s.description}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0 text-xs text-slate-400">
+                        {s.size && <span className="bg-slate-700 px-1.5 py-0.5 rounded">{s.size}</span>}
+                        {s.color && <span className="bg-slate-700 px-1.5 py-0.5 rounded">{s.color}</span>}
+                        {s.category && <span className="bg-slate-700 px-1.5 py-0.5 rounded">{s.category}</span>}
+                        <span className="text-slate-500">qty {s.system_qty}</span>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
             )}
           </div>
+
           {errors.sku && <p className="text-red-400 text-xs mt-1">{errors.sku.message}</p>}
 
           {/* Master item preview */}
@@ -256,7 +396,7 @@ export function CountEntry({ sessionId, enteredBy, onAdded }: Props) {
           </div>
         </div>
 
-        {/* Size / Color / Category — auto-populated, editable */}
+        {/* Size / Color / Category */}
         <div className="rounded-lg border border-slate-700 bg-slate-800/30 p-3 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs text-slate-400 font-medium">Item Details</span>
@@ -270,7 +410,7 @@ export function CountEntry({ sessionId, enteredBy, onAdded }: Props) {
               </button>
             )}
             {editingDetails && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 {detailsDiffer && (
                   <button
                     type="button"
@@ -278,9 +418,7 @@ export function CountEntry({ sessionId, enteredBy, onAdded }: Props) {
                     disabled={syncingMaster}
                     className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 disabled:opacity-50"
                   >
-                    {syncingMaster
-                      ? <Loader2 size={11} className="animate-spin" />
-                      : <RefreshCw size={11} />}
+                    {syncingMaster ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
                     Save to master
                   </button>
                 )}
@@ -335,7 +473,9 @@ export function CountEntry({ sessionId, enteredBy, onAdded }: Props) {
             <p className="text-xs text-slate-500">Auto-filled from master item · click Edit to override</p>
           )}
           {editingDetails && detailsDiffer && (
-            <p className="text-xs text-amber-400">Changed from master — click &quot;Save to master&quot; to update the catalog</p>
+            <p className="text-xs text-amber-400">
+              Changed from master — click &quot;Save to master&quot; to update the catalog (logged to audit trail)
+            </p>
           )}
         </div>
 

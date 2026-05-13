@@ -9,6 +9,7 @@ import { useToast } from '@/components/toast'
 import { Plus, Search, RefreshCw, Loader2, Edit2, ToggleLeft, ToggleRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDropdowns } from '@/lib/dropdowns'
+import { logMasterItemChanges, diffFields } from '@/lib/audit'
 
 const BRANCHES = ['Montego Bay', 'Kingston', 'Off site storage']
 
@@ -264,6 +265,12 @@ function EditItemModal({ item, onClose, onSaved }: {
 
   const save = async () => {
     setSaving(true)
+    const auditFields = ['description', 'size', 'color', 'category', 'branch', 'location', 'system_qty', 'system_qty_date']
+    const changes = diffFields(
+      Object.fromEntries(auditFields.map((f) => [f, item[f as keyof MasterItem] != null ? String(item[f as keyof MasterItem]) : null])),
+      Object.fromEntries(auditFields.map((f) => [f, form[f as keyof typeof form] != null ? String(form[f as keyof typeof form]) : null])),
+      auditFields
+    )
     const { data, error } = await supabase
       .from('master_items')
       .update({
@@ -281,6 +288,7 @@ function EditItemModal({ item, onClose, onSaved }: {
       .single()
     setSaving(false)
     if (error) { toast(error.message, 'error'); return }
+    await logMasterItemChanges({ itemId: item.id, sku: item.sku, changedBy: null, source: 'master_data_edit', changes })
     toast('Item updated', 'success')
     onSaved(data as MasterItem)
   }
