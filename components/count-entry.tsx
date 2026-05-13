@@ -239,10 +239,12 @@ export function CountEntry({ sessionId, enteredBy, onAdded }: Props) {
       location: data.location || null,
       size: data.size || null,
       color: data.color || null,
+      category: data.category || null,
       entered_by: enteredBy,
       date_of_count: new Date().toISOString().split('T')[0],
       notes: data.notes || null,
       is_new_item: skuStatus === 'not_found',
+      system_qty_at_count: masterItem?.system_qty ?? null,
     }
     const { data: inserted, error } = await supabase
       .from('stock_count_actuals')

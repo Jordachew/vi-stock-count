@@ -4,8 +4,11 @@ import { Nav } from '@/components/nav'
 import { ToastProvider } from '@/components/toast'
 
 export const metadata: Metadata = {
-  title: "VI Stock Count",
-  description: "Victoria's Intimates — Physical Inventory Count System",
+  title: {
+    default: "VI Stock Count — Victoria's Intimates",
+    template: "%s | VI Stock Count",
+  },
+  description: "Victoria's Intimates — Physical Inventory Count & Variance Management System",
 }
 
 export default function RootLayout({

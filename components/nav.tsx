@@ -3,8 +3,9 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { BarChart3, ClipboardList, Database, Home, Menu, Settings, X } from 'lucide-react'
+import { BarChart3, ClipboardList, Database, Home, Menu, Settings, HelpCircle, X } from 'lucide-react'
 import { useState } from 'react'
+import { VIWordmark } from './vi-logo'
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: Home },
@@ -12,6 +13,7 @@ const navItems = [
   { href: '/sessions', label: 'Count Sessions', icon: ClipboardList },
   { href: '/variance', label: 'Variance Report', icon: BarChart3 },
   { href: '/admin', label: 'Admin', icon: Settings },
+  { href: '/help', label: 'Help', icon: HelpCircle },
 ]
 
 export function Nav() {
@@ -23,9 +25,8 @@ export function Nav() {
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between h-14">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded bg-pink-500 flex items-center justify-center text-white font-bold text-xs">VI</div>
-            <span className="text-white font-semibold text-sm hidden sm:block">Stock Count</span>
+          <Link href="/">
+            <VIWordmark logoSize={30} />
           </Link>
 
           {/* Desktop nav */}

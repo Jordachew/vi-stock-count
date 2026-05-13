@@ -60,6 +60,7 @@ export default function SessionDetailPage() {
   }
 
   const deleteActual = async (actualId: string) => {
+    if (!confirm('Remove this count entry? This cannot be undone.')) return
     setDeletingId(actualId)
     const { error } = await supabase.from('stock_count_actuals').delete().eq('id', actualId)
     setDeletingId(null)
@@ -68,24 +69,47 @@ export default function SessionDetailPage() {
     toast('Entry removed', 'success')
   }
 
+  const logSessionStatus = async (oldStatus: string, newStatus: string) => {
+    await supabase.from('session_audit_log').insert({
+      session_id: id,
+      session_name: session?.session_name,
+      changed_by: session?.entered_by ?? null,
+      old_status: oldStatus,
+      new_status: newStatus,
+    })
+  }
+
   const closeSession = async (newStatus: 'closed' | 'reconciled') => {
+    if (newStatus === 'reconciled') {
+      const ok = confirm(
+        `Mark session "${session?.session_name}" as Reconciled?\n\n` +
+        `This will lock the session permanently. Count entries cannot be added, edited, or deleted after reconciliation.\n\n` +
+        `Proceed?`
+      )
+      if (!ok) return
+    }
     setClosingSession(true)
+    const oldStatus = session?.status ?? 'open'
     const { error } = await supabase
       .from('stock_sessions')
       .update({ status: newStatus })
       .eq('id', id)
     setClosingSession(false)
     if (error) { toast(error.message, 'error'); return }
+    await logSessionStatus(oldStatus, newStatus)
     setSession((prev) => prev ? { ...prev, status: newStatus } : prev)
     toast(`Session ${newStatus}`, 'success')
   }
 
   const reopenSession = async () => {
+    if (!confirm(`Reopen session "${session?.session_name}"? Entries will be editable again.`)) return
+    const oldStatus = session?.status ?? 'closed'
     const { error } = await supabase
       .from('stock_sessions')
       .update({ status: 'open' })
       .eq('id', id)
     if (error) { toast(error.message, 'error'); return }
+    await logSessionStatus(oldStatus, 'open')
     setSession((prev) => prev ? { ...prev, status: 'open' } : prev)
     toast('Session reopened', 'success')
   }
